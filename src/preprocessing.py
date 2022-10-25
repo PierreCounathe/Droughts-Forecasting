@@ -237,12 +237,10 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     weather_variables = timeseries_data.columns.drop(['fips', 'date', 'score'])
     n_weather_variables = len(weather_variables)
     n_time_variables = n_weather_variables + 2 #the '+2' here represents the encoded date
-    main_variables = weather_variables
     if use_previous_drought_scores:
         weather_and_score_variables = timeseries_data.columns.drop(['fips', 'date'])
         n_weather_and_score_variables = len(weather_and_score_variables)
         n_time_variables = n_weather_and_score_variables + 2 #the '+2' here represents the encoded date
-        main_variables = weather_and_score_variables
     if use_lat_lon:
         soil_variables = soil_data.columns.drop(['fips'])
         n_soil_variables = len(soil_variables)
@@ -253,9 +251,8 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
         n_years = 2
     else:
         n_years = 1
-    tot_variables = n_years * (time_window * n_time_variables) + n_soil_variables
-    X_time = np.empty(timeseries_data.shape[0]//time_window, time_window, n_time_variables)
-    X_static = np.empty(timeseries_data.shape[0] // time_window, n_soil_variables)
+    X_time = np.empty((timeseries_data.shape[0]//time_window, time_window, n_time_variables))
+    X_static = np.empty((timeseries_data.shape[0] // time_window, n_soil_variables))
     y_target = np.empty((timeseries_data.shape[0]//time_window, target_size))
     count = 0
     list_of_fips = pd.unique(timeseries_data['fips']).tolist()
@@ -265,14 +262,12 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
         minimum_start_index = 0
     for fips in tqdm(list_of_fips):
         restrained_timeseries = timeseries_data[timeseries_data['fips'] == fips].reset_index(drop = True).copy(deep=True)
-        y = restrained_timeseries["score"].values
         X_s = soil_data[soil_data["fips"] == fips][soil_variables].values[0]
         i = random.randint(minimum_start_index, minimum_start_index + time_window)
         while i + (time_window - 1) + target_size * 7 < restrained_timeseries.shape[0]:
-            X_time[count, :, : n_time_variables-3] = restrained_timeseries[i : i + time_window]
-            X_time[count, :, n_time_variables-2:n_time_variables-2] = np.array([cyclic_date(restrained_timeseries['date'].iloc[j]) for j in range(i, i+time_window)])
-            X_time[count, :, n_time_variables] = y[i : i + time_window]
-            X_static[count] = X_s.copy(deep=True)
+            X_time[count, :, : n_time_variables-2] = restrained_timeseries[i : i + time_window][weather_and_score_variables]
+            X_time[count, :, n_time_variables-2:] = np.array([cyclic_date(restrained_timeseries['date'].iloc[j]) for j in range(i, i+time_window)])
+            X_static[count] = X_s
             y_target[count] = restrained_timeseries['score'][range(i + time_window - 1 + 7, i + time_window - 1 + 7*6 + 1, 7)]
             if training_set:
                 i += time_window # We skip all observations that were included in the construction of the current row
@@ -283,7 +278,7 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     X_time = X_time[:count]
     X_static = X_static[:count]
     y_target = y_target[:count]
-    return [X_static, X_time, y_target]
+    return [X_time, X_static, y_target]
 
 
 def custom_scaler(X_train, X_valid = None, X_test = None):
@@ -381,3 +376,31 @@ def get_lower_dimension_3(data_name):
     low_dim_3_ts.drop(columns = ['W_RANGE_COMP'], inplace = True)
     cache_file(low_dim_3_ts, file_path)
     return low_dim_3_ts
+
+
+def normalize(X_static, X_time, scaler_dict=None, scaler_dict_static=None, fit=False):
+    if not scaler_dict:
+        scaler_dict = {}
+    if not scaler_dict_static:
+        scaler_dict_static = {}
+    for index in tqdm(range(X_time.shape[-1])):
+        if fit:
+            scaler_dict[index] = RobustScaler().fit(X_time[:, :, index].reshape(-1, 1))
+        X_time[:, :, index] = (
+            scaler_dict[index]
+            .transform(X_time[:, :, index].reshape(-1, 1))
+            .reshape(-1, X_time.shape[-2])
+        )
+    for index in tqdm(range(X_static.shape[-1])):
+        if fit:
+            scaler_dict_static[index] = RobustScaler().fit(
+                X_static[:, index].reshape(-1, 1)
+            )
+        X_static[:, index] = (
+            scaler_dict_static[index]
+            .transform(X_static[:, index].reshape(-1, 1))
+            .reshape(1, -1)
+        )
+    if fit:
+        return X_time, X_static, scaler_dict, scaler_dict_static
+    return X_time, X_static
