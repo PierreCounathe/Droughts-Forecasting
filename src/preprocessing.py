@@ -254,7 +254,7 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     else:
         n_years = 1
     tot_variables = n_years * (time_window * n_time_variables) + n_soil_variables
-    X_time = np.empty(timeseries_data.shape[0]//time_window, time_window, len(n_time_variables))
+    X_time = np.empty(timeseries_data.shape[0]//time_window, time_window, n_time_variables)
     X_static = np.empty(timeseries_data.shape[0] // time_window, n_soil_variables)
     y_target = np.empty((timeseries_data.shape[0]//time_window, target_size))
     count = 0
