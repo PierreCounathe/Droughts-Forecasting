@@ -59,7 +59,11 @@ class DroughtNetLSTM(nn.Module):
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
         hidden = (
-            weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(constants.DEVICE),
-            weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(constants.DEVICE),
+            weight.new(self.n_layers, batch_size, self.hidden_dim)
+            .zero_()
+            .to(constants.DEVICE),
+            weight.new(self.n_layers, batch_size, self.hidden_dim)
+            .zero_()
+            .to(constants.DEVICE),
         )
         return hidden

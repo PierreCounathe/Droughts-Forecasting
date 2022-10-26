@@ -37,22 +37,33 @@ def clean(filename):
     fips_to_drop = constants.FIPS_TO_DROP
 
     # Dropping bad fips
-    data = data[~data['fips'].isin(fips_to_drop)]
+    data = data[~data["fips"].isin(fips_to_drop)]
 
     # Derive from the shape of the data if it is soil data or timeseries data
     nrwows, ncols = data.shape
     if ncols == 21:
-        print('The dataframe you inputted contains timeseries data, dropping fips that contain bad data, and interpolating score')
+        print(
+            "The dataframe you inputted contains timeseries data, dropping fips that contain bad data, and interpolating score"
+        )
         # Interpolation
-        data['score'] = (data[['fips', 'score']].groupby(['fips']).apply(lambda group: group.interpolate(method = "linear", limit_direction = "both")))['score']
+        data["score"] = (
+            data[["fips", "score"]]
+            .groupby(["fips"])
+            .apply(
+                lambda group: group.interpolate(method="linear", limit_direction="both")
+            )
+        )["score"]
     elif ncols == 32:
-        print('The dataframe you inputted contains soil data, dropping fips that contain bad data, and dropping "CULT_LAND"')
+        print(
+            'The dataframe you inputted contains soil data, dropping fips that contain bad data, and dropping "CULT_LAND"'
+        )
         # Drop useless CULT_LAND variable in the soil data
-        data.drop(columns = ['CULT_LAND'], inplace = True)
+        data.drop(columns=["CULT_LAND"], inplace=True)
     else:
-        print("There is an error in the dimensions of the file you want to load, check that you loaded soil data or timeseries")
+        print(
+            "There is an error in the dimensions of the file you want to load, check that you loaded soil data or timeseries"
+        )
     return data
-
 
 
 def clean_and_combine(timeseries_filename, soil_filename):
@@ -71,7 +82,7 @@ def clean_and_combine(timeseries_filename, soil_filename):
     soil_data = clean(soil_filename)
 
     # Generate the output data
-    output_data = pd.merge(timeseries, soil_data, on = 'fips', how = 'left')
+    output_data = pd.merge(timeseries, soil_data, on="fips", how="left")
 
     return output_data
 
@@ -82,17 +93,26 @@ def load_clean_data(data_name):
     Args:
         data_name (str): "soil", "train", "validation" or "test"
     """
-    cleaned_file_name = {"soil": "cleaned_soil_data.pickle", "train": "cleaned_train_timeseries.pickle", 
-                         "validation": "cleaned_validation_timeseries.pickle", 
-                         "test": "cleaned_test_timeseries.pickle"}[data_name]
+    cleaned_file_name = {
+        "soil": "cleaned_soil_data.pickle",
+        "train": "cleaned_train_timeseries.pickle",
+        "validation": "cleaned_validation_timeseries.pickle",
+        "test": "cleaned_test_timeseries.pickle",
+    }[data_name]
     cleaned_file_path = os.path.join(constants.DATA_PATH, cleaned_file_name)
     if os.path.exists(cleaned_file_path):
         print(f"Loading existing clean {data_name} data")
         return pickle.load(open(cleaned_file_path, "rb"))
     else:
-        print(f"Clean {data_name} data could not be found, cleaning data and caching it...")
-        filename = {"soil": "soil_data.csv", "train": "train_timeseries.csv", 
-                    "validation": "validation_timeseries.csv", "test": "test_timeseries.csv"}[data_name]
+        print(
+            f"Clean {data_name} data could not be found, cleaning data and caching it..."
+        )
+        filename = {
+            "soil": "soil_data.csv",
+            "train": "train_timeseries.csv",
+            "validation": "validation_timeseries.csv",
+            "test": "test_timeseries.csv",
+        }[data_name]
         file_path = os.path.join(constants.DATA_PATH, filename)
         cleaned_df = clean(file_path)
         cache_file(cleaned_df, cleaned_file_path)
@@ -109,37 +129,47 @@ def cyclic_date(date):
     """
     date = datetime.strptime(date, "%Y-%m-%d")
     day_number = date.timetuple().tm_yday
-    return(np.sin(2 * np.pi * day_number / 366), np.cos(2 * np.pi * day_number / 366))
+    return (np.sin(2 * np.pi * day_number / 366), np.cos(2 * np.pi * day_number / 366))
 
 
-def transform_data_dumb(timeseries_data, 
-    time_window = 2,
-    target_size = 6):
+def transform_data_dumb(timeseries_data, time_window=2, target_size=6):
     """Creates an array for regression, where X contains only the previous and the current days' drought scores
     This data will be used with predictors that do not involve statistical learning,
     only deduction of the output given observed drought values
     """
-    X = np.empty((timeseries_data.shape[0]//time_window, time_window))
-    y = np.empty((timeseries_data.shape[0]//time_window, target_size))
+    X = np.empty((timeseries_data.shape[0] // time_window, time_window))
+    y = np.empty((timeseries_data.shape[0] // time_window, target_size))
     count = 0
-    list_of_fips = pd.unique(timeseries_data['fips']).tolist()
+    list_of_fips = pd.unique(timeseries_data["fips"]).tolist()
     minimum_start_index = 0
     for fips in tqdm(list_of_fips):
-        restrained_timeseries = timeseries_data[timeseries_data['fips'] == fips].reset_index(drop = True)
+        restrained_timeseries = timeseries_data[
+            timeseries_data["fips"] == fips
+        ].reset_index(drop=True)
         i = random.randint(minimum_start_index, minimum_start_index + time_window)
         while i + (time_window - 1) + target_size * 7 < restrained_timeseries.shape[0]:
-            X[count, :] = restrained_timeseries['score'].iloc[i:i+time_window]
-            y[count] = restrained_timeseries['score'][range(i + time_window - 1 + 7, i + time_window - 1 + 7*6 + 1, 7)]
+            X[count, :] = restrained_timeseries["score"].iloc[i : i + time_window]
+            y[count] = restrained_timeseries["score"][
+                range(i + time_window - 1 + 7, i + time_window - 1 + 7 * 6 + 1, 7)
+            ]
             i += time_window
             count += 1
     X = X[:count]
     y = y[:count]
     return X, y
-    
 
-def transform_data_2d(timeseries_data, soil_data, use_lat_lon = True, time_window = 180, 
-    target_size = 6, use_previous_year_data = False, use_previous_drought_scores = True, 
-    training_set = True, step = 20):
+
+def transform_data_2d(
+    timeseries_data,
+    soil_data,
+    use_lat_lon=True,
+    time_window=180,
+    target_size=6,
+    use_previous_year_data=False,
+    use_previous_drought_scores=True,
+    training_set=True,
+    step=20,
+):
     """From timeseries and soil data, generates a dataframe ready for use of ML techniques
     The variables in this dataframe are:
         - the encoded dates
@@ -161,46 +191,90 @@ def transform_data_2d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     Returns:
         Tuple(np.ndarray[n_points, n_variables], np.ndarray[n_points, n_targets]): independent and dependent variables
     """
-    weather_variables = timeseries_data.columns.drop(['fips', 'date', 'score'])
+    weather_variables = timeseries_data.columns.drop(["fips", "date", "score"])
     n_weather_variables = len(weather_variables)
-    n_time_variables = n_weather_variables + 2 #the '+2' here represents the encoded date
+    n_time_variables = (
+        n_weather_variables + 2
+    )  # the '+2' here represents the encoded date
     main_variables = weather_variables
     if use_previous_drought_scores:
-        weather_and_score_variables = timeseries_data.columns.drop(['fips', 'date'])
+        weather_and_score_variables = timeseries_data.columns.drop(["fips", "date"])
         n_weather_and_score_variables = len(weather_and_score_variables)
-        n_time_variables = n_weather_and_score_variables + 2 #the '+2' here represents the encoded date
+        n_time_variables = (
+            n_weather_and_score_variables + 2
+        )  # the '+2' here represents the encoded date
         main_variables = weather_and_score_variables
     if use_lat_lon:
-        soil_variables = soil_data.columns.drop(['fips'])
+        soil_variables = soil_data.columns.drop(["fips"])
         n_soil_variables = len(soil_variables)
     else:
-        soil_variables = soil_data.columns.drop(['fips', 'lat', 'lon'])
+        soil_variables = soil_data.columns.drop(["fips", "lat", "lon"])
         n_soil_variables = len(soil_variables)
     if use_previous_year_data:
         n_years = 2
     else:
         n_years = 1
     tot_variables = n_years * (time_window * n_time_variables) + n_soil_variables
-    X = np.empty((timeseries_data.shape[0]//time_window, tot_variables))
-    y = np.empty((timeseries_data.shape[0]//time_window, target_size))
+    X = np.empty((timeseries_data.shape[0] // time_window, tot_variables))
+    y = np.empty((timeseries_data.shape[0] // time_window, target_size))
     count = 0
-    list_of_fips = pd.unique(timeseries_data['fips']).tolist()
+    list_of_fips = pd.unique(timeseries_data["fips"]).tolist()
     if use_previous_year_data:
         minimum_start_index = 365
     else:
         minimum_start_index = 0
     for fips in tqdm(list_of_fips):
-        restrained_timeseries = timeseries_data[timeseries_data['fips'] == fips].reset_index(drop = True)
+        restrained_timeseries = timeseries_data[
+            timeseries_data["fips"] == fips
+        ].reset_index(drop=True)
         i = random.randint(minimum_start_index, minimum_start_index + time_window)
         while i + (time_window - 1) + target_size * 7 < restrained_timeseries.shape[0]:
-            X[count, : time_window * n_time_variables] = list(np.array([cyclic_date(restrained_timeseries['date'].iloc[j]) for j in range(i, i+time_window)]).flat) + restrained_timeseries[main_variables].iloc[i:i+time_window].to_numpy().flatten().tolist()
+            X[count, : time_window * n_time_variables] = (
+                list(
+                    np.array(
+                        [
+                            cyclic_date(restrained_timeseries["date"].iloc[j])
+                            for j in range(i, i + time_window)
+                        ]
+                    ).flat
+                )
+                + restrained_timeseries[main_variables]
+                .iloc[i : i + time_window]
+                .to_numpy()
+                .flatten()
+                .tolist()
+            )
             if use_previous_year_data:
-                X[count, time_window * n_time_variables : n_years * (time_window * n_time_variables)] = list(np.array([cyclic_date(restrained_timeseries['date'].iloc[j]) for j in range(i-365, i-365+time_window)]).flat) + restrained_timeseries[main_variables].iloc[i-365:i-365+time_window].to_numpy().flatten()
-            X[count, - n_soil_variables:] = soil_data[soil_data['fips'] == fips][soil_variables].to_numpy().flatten()
-            y[count] = restrained_timeseries['score'][range(i + time_window - 1 + 7, i + time_window - 1 + 7*6 + 1, 7)]
+                X[
+                    count,
+                    time_window
+                    * n_time_variables : n_years
+                    * (time_window * n_time_variables),
+                ] = (
+                    list(
+                        np.array(
+                            [
+                                cyclic_date(restrained_timeseries["date"].iloc[j])
+                                for j in range(i - 365, i - 365 + time_window)
+                            ]
+                        ).flat
+                    )
+                    + restrained_timeseries[main_variables]
+                    .iloc[i - 365 : i - 365 + time_window]
+                    .to_numpy()
+                    .flatten()
+                )
+            X[count, -n_soil_variables:] = (
+                soil_data[soil_data["fips"] == fips][soil_variables]
+                .to_numpy()
+                .flatten()
+            )
+            y[count] = restrained_timeseries["score"][
+                range(i + time_window - 1 + 7, i + time_window - 1 + 7 * 6 + 1, 7)
+            ]
             if training_set:
-                i += time_window # We skip all observations that were included in the construction of the current row
-                                 # in order to avoid introducing correlation in the training set
+                i += time_window  # We skip all observations that were included in the construction of the current row
+                # in order to avoid introducing correlation in the training set
             else:
                 i += step
             count += 1
@@ -209,9 +283,17 @@ def transform_data_2d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     return X, y
 
 
-def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_window = 180, 
-    target_size = 6, use_previous_year_data = False, use_previous_drought_scores = True, 
-    training_set = True, step = 20):
+def transform_data_3d(
+    timeseries_data,
+    soil_data,
+    use_lat_lon=True,
+    time_window=180,
+    target_size=6,
+    use_previous_year_data=False,
+    use_previous_drought_scores=True,
+    training_set=True,
+    step=20,
+):
     """From timeseries and soil data, generates tensors ready for use of Deep Learning techniques
     The variables in this dataframe are:
         - the encoded dates
@@ -234,44 +316,63 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
         Tuple(np.ndarray[n_episodes, time_window, n_time_variables], np.ndarray[n_soil_variables], np.ndarray[n_episodes, target_size])
         : time variables tensor, static independent variables, and dependent variables
     """
-    weather_variables = timeseries_data.columns.drop(['fips', 'date', 'score'])
+    weather_variables = timeseries_data.columns.drop(["fips", "date", "score"])
     n_weather_variables = len(weather_variables)
-    n_time_variables = n_weather_variables + 2 #the '+2' here represents the encoded date
+    n_time_variables = (
+        n_weather_variables + 2
+    )  # the '+2' here represents the encoded date
     if use_previous_drought_scores:
-        weather_and_score_variables = timeseries_data.columns.drop(['fips', 'date'])
+        weather_and_score_variables = timeseries_data.columns.drop(["fips", "date"])
         n_weather_and_score_variables = len(weather_and_score_variables)
-        n_time_variables = n_weather_and_score_variables + 2 #the '+2' here represents the encoded date
+        n_time_variables = (
+            n_weather_and_score_variables + 2
+        )  # the '+2' here represents the encoded date
     if use_lat_lon:
-        soil_variables = soil_data.columns.drop(['fips'])
+        soil_variables = soil_data.columns.drop(["fips"])
         n_soil_variables = len(soil_variables)
     else:
-        soil_variables = soil_data.columns.drop(['fips', 'lat', 'lon'])
+        soil_variables = soil_data.columns.drop(["fips", "lat", "lon"])
         n_soil_variables = len(soil_variables)
     if use_previous_year_data:
         n_years = 2
     else:
         n_years = 1
-    X_time = np.empty((timeseries_data.shape[0]//time_window, time_window, n_time_variables))
+    X_time = np.empty(
+        (timeseries_data.shape[0] // time_window, time_window, n_time_variables)
+    )
     X_static = np.empty((timeseries_data.shape[0] // time_window, n_soil_variables))
-    y_target = np.empty((timeseries_data.shape[0]//time_window, target_size))
+    y_target = np.empty((timeseries_data.shape[0] // time_window, target_size))
     count = 0
-    list_of_fips = pd.unique(timeseries_data['fips']).tolist()
+    list_of_fips = pd.unique(timeseries_data["fips"]).tolist()
     if use_previous_year_data:
         minimum_start_index = 365
     else:
         minimum_start_index = 0
     for fips in tqdm(list_of_fips):
-        restrained_timeseries = timeseries_data[timeseries_data['fips'] == fips].reset_index(drop = True).copy(deep=True)
+        restrained_timeseries = (
+            timeseries_data[timeseries_data["fips"] == fips]
+            .reset_index(drop=True)
+            .copy(deep=True)
+        )
         X_s = soil_data[soil_data["fips"] == fips][soil_variables].values[0]
         i = random.randint(minimum_start_index, minimum_start_index + time_window)
         while i + (time_window - 1) + target_size * 7 < restrained_timeseries.shape[0]:
-            X_time[count, :, : n_time_variables-2] = restrained_timeseries[i : i + time_window][weather_and_score_variables]
-            X_time[count, :, n_time_variables-2:] = np.array([cyclic_date(restrained_timeseries['date'].iloc[j]) for j in range(i, i+time_window)])
+            X_time[count, :, : n_time_variables - 2] = restrained_timeseries[
+                i : i + time_window
+            ][weather_and_score_variables]
+            X_time[count, :, n_time_variables - 2 :] = np.array(
+                [
+                    cyclic_date(restrained_timeseries["date"].iloc[j])
+                    for j in range(i, i + time_window)
+                ]
+            )
             X_static[count] = X_s
-            y_target[count] = restrained_timeseries['score'][range(i + time_window - 1 + 7, i + time_window - 1 + 7*6 + 1, 7)]
+            y_target[count] = restrained_timeseries["score"][
+                range(i + time_window - 1 + 7, i + time_window - 1 + 7 * 6 + 1, 7)
+            ]
             if training_set:
-                i += time_window # We skip all observations that were included in the construction of the current row
-                                 # in order to avoid introducing correlation in the training set
+                i += time_window  # We skip all observations that were included in the construction of the current row
+                # in order to avoid introducing correlation in the training set
             else:
                 i += step
             count += 1
@@ -281,8 +382,8 @@ def transform_data_3d(timeseries_data, soil_data, use_lat_lon = True, time_windo
     return [X_time, X_static, y_target]
 
 
-def custom_scaler(X_train, X_valid = None, X_test = None):
-    """ Uses the train data to figure out the transformations to be done. Applies this transformation to the validation and test data if available.
+def custom_scaler(X_train, X_valid=None, X_test=None):
+    """Uses the train data to figure out the transformations to be done. Applies this transformation to the validation and test data if available.
 
     Args:
         X_train (np.ndarray): training set
@@ -306,7 +407,7 @@ def custom_scaler(X_train, X_valid = None, X_test = None):
         return X_train, X_test
     else:
         return X_train
-    
+
 
 def round_and_intify(y):
     """Rounds float scores to integers
@@ -317,17 +418,21 @@ def round_and_intify(y):
     Returns:
         np.ndarray: int scores
     """
-    return np.clip(np.squeeze(y).round().astype('int'), 0, 5)
+    return np.clip(np.squeeze(y).round().astype("int"), 0, 5)
 
 
 def get_dumb_data(data_name):
-    filenames = {"train": ("X_train_dumb.pickle", "y_target_train_dumb.pickle"), 
-                "validation": ("X_valid_dumb.pickle", "y_target_valid_dumb.pickle")}[data_name]
+    filenames = {
+        "train": ("X_train_dumb.pickle", "y_target_train_dumb.pickle"),
+        "validation": ("X_valid_dumb.pickle", "y_target_valid_dumb.pickle"),
+    }[data_name]
     file_paths = [os.path.join(constants.DATA_PATH, filename) for filename in filenames]
 
     if os.path.exists(file_paths[0]) and os.path.exists(file_paths[1]):
-            return pickle.load(open(file_paths[0], "rb")), pickle.load(open(file_paths[1], "rb"))
-            
+        return pickle.load(open(file_paths[0], "rb")), pickle.load(
+            open(file_paths[1], "rb")
+        )
+
     timeseries = load_clean_data(data_name)
     X_dumb, y_target_dumb = transform_data_dumb(timeseries)
     cache_file(X_dumb, file_paths[0])
@@ -336,44 +441,62 @@ def get_dumb_data(data_name):
 
 
 def get_lower_dimension_1(data_name):
-    filename = {"train": "train_timeseries_lower_dim_1.pickle", 
-                "validation": "validation_timeseries_lower_dim_1.pickle", 
-                "test": "test_timeseries_lower_dim_1.pickle"}[data_name]
+    filename = {
+        "train": "train_timeseries_lower_dim_1.pickle",
+        "validation": "validation_timeseries_lower_dim_1.pickle",
+        "test": "test_timeseries_lower_dim_1.pickle",
+    }[data_name]
     file_path = os.path.join(constants.DATA_PATH, filename)
     if os.path.exists(file_path):
         return pickle.load(open(file_path, "rb"))
     low_dim_1_ts = load_clean_data(data_name)
-    low_dim_1_ts['T_COMP'] = low_dim_1_ts[['T2MWET', 'T2MDEW', 'T2M_MIN', 'T2M', 'QV2M', 'TS', 'T2M_MAX']].progress_apply(lambda x: np.mean(x), axis = 1)
-    low_dim_1_ts['W_COMP'] = low_dim_1_ts[['WS10M', 'WS50M', 'WS10M_MIN', 'WS50M_MIN', 'WS10M_MAX', 'WS50M_MAX']].progress_apply(lambda x: np.mean(x), axis = 1)
-    low_dim_1_ts.drop(columns = ['T2MWET', 'T2MDEW', 'T2M_MIN', 'T2M', 'QV2M', 'TS', 'T2M_MAX'], inplace = True)
-    low_dim_1_ts.drop(columns = ['WS10M', 'WS50M', 'WS10M_MIN', 'WS50M_MIN', 'WS10M_MAX', 'WS50M_MAX'], inplace = True)
+    low_dim_1_ts["T_COMP"] = low_dim_1_ts[
+        ["T2MWET", "T2MDEW", "T2M_MIN", "T2M", "QV2M", "TS", "T2M_MAX"]
+    ].progress_apply(lambda x: np.mean(x), axis=1)
+    low_dim_1_ts["W_COMP"] = low_dim_1_ts[
+        ["WS10M", "WS50M", "WS10M_MIN", "WS50M_MIN", "WS10M_MAX", "WS50M_MAX"]
+    ].progress_apply(lambda x: np.mean(x), axis=1)
+    low_dim_1_ts.drop(
+        columns=["T2MWET", "T2MDEW", "T2M_MIN", "T2M", "QV2M", "TS", "T2M_MAX"],
+        inplace=True,
+    )
+    low_dim_1_ts.drop(
+        columns=["WS10M", "WS50M", "WS10M_MIN", "WS50M_MIN", "WS10M_MAX", "WS50M_MAX"],
+        inplace=True,
+    )
     cache_file(low_dim_1_ts, file_path)
     return low_dim_1_ts
 
 
 def get_lower_dimension_2(data_name):
-    filename = {"train": "train_timeseries_lower_dim_2.pickle", 
-                "validation": "validation_timeseries_lower_dim_2.pickle", 
-                "test": "test_timeseries_lower_dim_2.pickle"}[data_name]
+    filename = {
+        "train": "train_timeseries_lower_dim_2.pickle",
+        "validation": "validation_timeseries_lower_dim_2.pickle",
+        "test": "test_timeseries_lower_dim_2.pickle",
+    }[data_name]
     file_path = os.path.join(constants.DATA_PATH, filename)
     if os.path.exists(file_path):
         return pickle.load(open(file_path, "rb"))
     low_dim_2_ts = get_lower_dimension_1(data_name)
-    low_dim_2_ts['W_RANGE_COMP'] = low_dim_2_ts[['WS10M_RANGE', 'WS50M_RANGE']].progress_apply(lambda x: np.mean(x), axis = 1)
-    low_dim_2_ts.drop(columns = ['WS10M_RANGE', 'WS50M_RANGE'], inplace = True)
+    low_dim_2_ts["W_RANGE_COMP"] = low_dim_2_ts[
+        ["WS10M_RANGE", "WS50M_RANGE"]
+    ].progress_apply(lambda x: np.mean(x), axis=1)
+    low_dim_2_ts.drop(columns=["WS10M_RANGE", "WS50M_RANGE"], inplace=True)
     cache_file(low_dim_2_ts, file_path)
     return low_dim_2_ts
 
 
 def get_lower_dimension_3(data_name):
-    filename = {"train": "train_timeseries_lower_dim_3.pickle", 
-                "validation": "validation_timeseries_lower_dim_3.pickle", 
-                "test": "test_timeseries_lower_dim_3.pickle"}[data_name]
+    filename = {
+        "train": "train_timeseries_lower_dim_3.pickle",
+        "validation": "validation_timeseries_lower_dim_3.pickle",
+        "test": "test_timeseries_lower_dim_3.pickle",
+    }[data_name]
     file_path = os.path.join(constants.DATA_PATH, filename)
     if os.path.exists(file_path):
         return pickle.load(open(file_path, "rb"))
     low_dim_3_ts = get_lower_dimension_2(data_name)
-    low_dim_3_ts.drop(columns = ['W_RANGE_COMP'], inplace = True)
+    low_dim_3_ts.drop(columns=["W_RANGE_COMP"], inplace=True)
     cache_file(low_dim_3_ts, file_path)
     return low_dim_3_ts
 
