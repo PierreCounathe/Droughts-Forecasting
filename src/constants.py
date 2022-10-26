@@ -1,5 +1,13 @@
-import pathlib
 import os.path
+import pathlib
+
+import torch
+
+# Torch device
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda:0')
+else:
+    DEVICE = torch.device("cpu")
 
 # Data location constant
 PATH = pathlib.Path(__file__).parent.parent
