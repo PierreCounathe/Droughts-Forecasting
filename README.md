@@ -15,7 +15,7 @@ Since 1980, the US experienced 26 major droughts, each event averaging a cost of
 
 ## Results
 
-A summary of the performance of the different models tested can be found in [`summary/Droughts Forecasting Summary.pdf`](https://github.com/PierreCounathe/Droughts-Forecasting/tree/lstmbranch/summary).
+A summary of the performance of the different models tested can be found in [`summary/Droughts Forecasting Summary.pdf`](https://github.com/PierreCounathe/Droughts-Forecasting/blob/lstmbranch/summary/Droughts%20Forecasting%20Summary.pdf).
 
 Mainly, we notice that a Naive model has comparable performance with previous work done on droughts forecasting, that non-temporal Machine Learning models have strong limitations for drought prediction, and that it is possible to build strong Deep Learning models that can predict droughts with lead times greater than 6 weeks.
 
