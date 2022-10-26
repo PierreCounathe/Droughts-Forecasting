@@ -41,18 +41,18 @@ The U.S. Drought Monitor (USDM) is produced through a partnership between the Na
 
 ## Repository organisation
 
-.
-├── README.md
-├── data
-│   ├── train_timeseries_lower_dim_2.pickle
-│   └── validation_timeseries_lower_dim_2.pickle
-├── src
-│   ├── constants.py
-│   ├── data_exploration.ipynb
-│   ├── lstm.py
-│   ├── lstm_model.ipynb
-│   ├── ml_models.ipynb
-│   ├── preprocessing.py
-│   └── process_outputs.py
-└── summary
-    └── Droughts Forecasting Summary.pdf
+    .
+    ├── README.md
+    ├── data
+    │   ├── train_timeseries_lower_dim_2.pickle
+    │   └── validation_timeseries_lower_dim_2.pickle
+    ├── src
+    │   ├── constants.py
+    │   ├── data_exploration.ipynb
+    │   ├── lstm.py
+    │   ├── lstm_model.ipynb
+    │   ├── ml_models.ipynb
+    │   ├── preprocessing.py
+    │   └── process_outputs.py
+    └── summary
+        └── Droughts Forecasting Summary.pdf
